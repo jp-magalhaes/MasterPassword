@@ -1,143 +1,71 @@
-package com.lyndir.masterpassword.model;
+//==============================================================================
+// This file is part of Master Password.
+// Copyright (c) 2011-2017, Maarten Billemont.
+//
+// Master Password is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Master Password is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You can find a copy of the GNU General Public License in the
+// LICENSE file.  Alternatively, see <http://www.gnu.org/licenses/>.
+//==============================================================================
 
-import static com.lyndir.lhunath.opal.system.util.StringUtils.strf;
+package com.lyndir.masterpassword.model;
 
 import com.google.common.primitives.UnsignedInteger;
 import com.lyndir.masterpassword.*;
-import java.util.Objects;
+import java.util.Collection;
 import javax.annotation.Nullable;
-import org.joda.time.Instant;
 
 
 /**
- * @author lhunath, 14-12-05
+ * @author lhunath, 2018-05-14
  */
-public class MPSite {
+public interface MPSite<Q extends MPQuestion> extends Comparable<MPSite<?>> {
 
-    public static final MPSiteType      DEFAULT_TYPE    = MPSiteType.GeneratedLong;
-    public static final UnsignedInteger DEFAULT_COUNTER = UnsignedInteger.valueOf( 1 );
+    // - Meta
 
-    private final MPUser            user;
-    private       MasterKey.Version algorithmVersion;
-    private       Instant           lastUsed;
-    private       String            siteName;
-    private       MPSiteType        siteType;
-    private       UnsignedInteger   siteCounter;
-    private       int               uses;
-    private       String            loginName;
+    String getName();
 
-    public MPSite(final MPUser user, final String siteName) {
-        this( user, siteName, DEFAULT_TYPE, DEFAULT_COUNTER );
-    }
+    void setName(String name);
 
-    public MPSite(final MPUser user, final String siteName, final MPSiteType siteType, final UnsignedInteger siteCounter) {
-        this.user = user;
-        this.algorithmVersion = MasterKey.Version.CURRENT;
-        this.lastUsed = new Instant();
-        this.siteName = siteName;
-        this.siteType = siteType;
-        this.siteCounter = siteCounter;
-    }
+    // - Algorithm
 
-    protected MPSite(final MPUser user, final MasterKey.Version algorithmVersion, final Instant lastUsed, final String siteName,
-                     final MPSiteType siteType, final UnsignedInteger siteCounter, final int uses, @Nullable final String loginName,
-                     @Nullable final String importContent) {
-        this.user = user;
-        this.algorithmVersion = algorithmVersion;
-        this.lastUsed = lastUsed;
-        this.siteName = siteName;
-        this.siteType = siteType;
-        this.siteCounter = siteCounter;
-        this.uses = uses;
-        this.loginName = loginName;
-    }
+    MPAlgorithm getAlgorithm();
 
-    public String resultFor(final MasterKey masterKey) {
-        return resultFor( masterKey, MPSiteVariant.Password, null );
-    }
+    void setAlgorithm(MPAlgorithm algorithm);
 
-    public String resultFor(final MasterKey masterKey, final MPSiteVariant variant, @Nullable final String context) {
-        return masterKey.encode( siteName, siteType, siteCounter, variant, context );
-    }
+    UnsignedInteger getCounter();
 
-    public MPUser getUser() {
-        return user;
-    }
+    void setCounter(UnsignedInteger counter);
 
-    @Nullable
-    protected String exportContent() {
-        return null;
-    }
+    MPResultType getResultType();
 
-    public MasterKey.Version getAlgorithmVersion() {
-        return algorithmVersion;
-    }
+    void setResultType(MPResultType resultType);
 
-    public void setAlgorithmVersion(final MasterKey.Version mpVersion) {
-        this.algorithmVersion = mpVersion;
-    }
+    MPResultType getLoginType();
 
-    public Instant getLastUsed() {
-        return lastUsed;
-    }
+    void setLoginType(@Nullable MPResultType loginType);
 
-    public void updateLastUsed() {
-        lastUsed = new Instant();
-        user.updateLastUsed();
-    }
+    String getResult(MPKeyPurpose keyPurpose, @Nullable String keyContext, @Nullable String state)
+            throws MPKeyUnavailableException, MPAlgorithmException;
 
-    public String getSiteName() {
-        return siteName;
-    }
+    String getLogin(@Nullable String state)
+            throws MPKeyUnavailableException, MPAlgorithmException;
 
-    public void setSiteName(final String siteName) {
-        this.siteName = siteName;
-    }
+    // - Relations
 
-    public MPSiteType getSiteType() {
-        return siteType;
-    }
+    MPUser<? extends MPSite<?>> getUser();
 
-    public void setSiteType(final MPSiteType siteType) {
-        this.siteType = siteType;
-    }
+    void addQuestion(Q question);
 
-    public UnsignedInteger getSiteCounter() {
-        return siteCounter;
-    }
+    void deleteQuestion(Q question);
 
-    public void setSiteCounter(final UnsignedInteger siteCounter) {
-        this.siteCounter = siteCounter;
-    }
-
-    public int getUses() {
-        return uses;
-    }
-
-    public void setUses(final int uses) {
-        this.uses = uses;
-    }
-
-    public String getLoginName() {
-        return loginName;
-    }
-
-    public void setLoginName(final String loginName) {
-        this.loginName = loginName;
-    }
-
-    @Override
-    public boolean equals(final Object obj) {
-        return (this == obj) || ((obj instanceof MPSite) && Objects.equals( siteName, ((MPSite) obj).siteName ));
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hashCode( siteName );
-    }
-
-    @Override
-    public String toString() {
-        return strf( "{MPSite: %s}", siteName );
-    }
+    Collection<Q> getQuestions();
 }

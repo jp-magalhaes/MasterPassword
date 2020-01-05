@@ -1,3 +1,21 @@
+//==============================================================================
+// This file is part of Master Password.
+// Copyright (c) 2011-2017, Maarten Billemont.
+//
+// Master Password is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Master Password is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You can find a copy of the GNU General Public License in the
+// LICENSE file.  Alternatively, see <http://www.gnu.org/licenses/>.
+//==============================================================================
+
 package com.lyndir.masterpassword.gui;
 
 import static com.lyndir.lhunath.opal.system.util.ObjectUtils.*;
@@ -29,28 +47,25 @@ import org.jetbrains.annotations.NonNls;
 /**
  * @author lhunath, 2014-06-11
  */
-@SuppressWarnings("HardcodedFileSeparator")
+@SuppressWarnings({ "HardcodedFileSeparator", "MethodReturnAlwaysConstant", "SpellCheckingInspection" })
 public abstract class Res {
 
-    private static final int AVATAR_COUNT = 19;
+    private static final int                                   AVATAR_COUNT     = 19;
     private static final Map<Window, ScheduledExecutorService> executorByWindow = new WeakHashMap<>();
-    private static final Logger                                        logger           = Logger.get( Res.class );
-    private static final Colors                                        colors           = new Colors();
+    private static final Logger                                logger           = Logger.get( Res.class );
+    private static final Colors                                colors           = new Colors();
 
     public static Future<?> execute(final Window host, final Runnable job) {
         return schedule( host, job, 0, TimeUnit.MILLISECONDS );
     }
 
     public static Future<?> schedule(final Window host, final Runnable job, final long delay, final TimeUnit timeUnit) {
-        return getExecutor( host ).schedule( new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    job.run();
-                }
-                catch (final Throwable t) {
-                    logger.err( t, "Unexpected: %s", t.getLocalizedMessage() );
-                }
+        return getExecutor( host ).schedule( () -> {
+            try {
+                job.run();
+            }
+            catch (final Throwable t) {
+                logger.err( t, "Unexpected: %s", t.getLocalizedMessage() );
             }
         }, delay, timeUnit );
     }
@@ -61,17 +76,13 @@ public abstract class Res {
 
     public static <V> ListenableFuture<V> schedule(final Window host, final Callable<V> job, final long delay, final TimeUnit timeUnit) {
         ScheduledExecutorService executor = getExecutor( host );
-        return JdkFutureAdapters.listenInPoolThread( executor.schedule( new Callable<V>() {
-            @Override
-            public V call()
-                    throws Exception {
-                try {
-                    return job.call();
-                }
-                catch (final Throwable t) {
-                    logger.err( t, "Unexpected: %s", t.getLocalizedMessage() );
-                    throw Throwables.propagate( t );
-                }
+        return JdkFutureAdapters.listenInPoolThread( executor.schedule( () -> {
+            try {
+                return job.call();
+            }
+            catch (final Throwable t) {
+                logger.err( t, "Unexpected: %s", t.getLocalizedMessage() );
+                throw Throwables.propagate( t );
             }
         }, delay, timeUnit ), executor );
     }
@@ -185,14 +196,14 @@ public abstract class Res {
 
     private static Font font(@NonNls final String fontResourceName) {
         Map<String, SoftReference<Font>> fontsByResourceName = Maps.newHashMap();
-        SoftReference<Font> fontRef = fontsByResourceName.get( fontResourceName );
-        Font font = (fontRef == null)? null: fontRef.get();
+        SoftReference<Font>              fontRef             = fontsByResourceName.get( fontResourceName );
+        Font                             font                = (fontRef == null)? null: fontRef.get();
         if (font == null)
             try {
                 fontsByResourceName.put( fontResourceName, new SoftReference<>(
                         font = Font.createFont( Font.TRUETYPE_FONT, Resources.getResource( fontResourceName ).openStream() ) ) );
             }
-            catch (FontFormatException | IOException e) {
+            catch (final FontFormatException | IOException e) {
                 throw Throwables.propagate( e );
             }
 
@@ -205,8 +216,8 @@ public abstract class Res {
 
     private static final class RetinaIcon extends ImageIcon {
 
-        private static final Pattern scalePattern = Pattern.compile( ".*@(\\d+)x.[^.]+$" );
-        private static final long serialVersionUID = 1L;
+        private static final Pattern scalePattern     = Pattern.compile( ".*@(\\d+)x.[^.]+$" );
+        private static final long    serialVersionUID = 1L;
 
         private final float scale;
 
@@ -247,10 +258,10 @@ public abstract class Res {
         public synchronized void paintIcon(final Component c, final Graphics g, final int x, final int y) {
             ImageObserver observer = ifNotNullElse( getImageObserver(), c );
 
-            Image image = getImage();
-            int width = image.getWidth( observer );
-            int height = image.getHeight( observer );
-            Graphics2D g2d = (Graphics2D) g.create( x, y, width, height );
+            Image      image  = getImage();
+            int        width  = image.getWidth( observer );
+            int        height = image.getHeight( observer );
+            Graphics2D g2d    = (Graphics2D) g.create( x, y, width, height );
 
             g2d.scale( 1 / scale, 1 / scale );
             g2d.drawImage( image, 0, 0, observer );

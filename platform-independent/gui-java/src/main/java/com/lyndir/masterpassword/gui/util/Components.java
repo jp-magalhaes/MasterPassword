@@ -1,3 +1,21 @@
+//==============================================================================
+// This file is part of Master Password.
+// Copyright (c) 2011-2017, Maarten Billemont.
+//
+// Master Password is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Master Password is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You can find a copy of the GNU General Public License in the
+// LICENSE file.  Alternatively, see <http://www.gnu.org/licenses/>.
+//==============================================================================
+
 package com.lyndir.masterpassword.gui.util;
 
 import com.lyndir.masterpassword.gui.Res;
@@ -12,6 +30,8 @@ import javax.swing.border.CompoundBorder;
  * @author lhunath, 2014-06-08
  */
 public abstract class Components {
+
+    private static final float CONTROL_TEXT_SIZE = 12f;
 
     public static GradientPanel boxLayout(final int axis, final Component... components) {
         GradientPanel container = gradientPanel( null, null );
@@ -55,7 +75,7 @@ public abstract class Components {
             {
                 setBorder( BorderFactory.createCompoundBorder( BorderFactory.createLineBorder( Res.colors().controlBorder(), 1, true ),
                                                                BorderFactory.createEmptyBorder( 4, 4, 4, 4 ) ) );
-                setFont( Res.valueFont().deriveFont( 12f ) );
+                setFont( Res.valueFont().deriveFont( CONTROL_TEXT_SIZE ) );
                 setAlignmentX( LEFT_ALIGNMENT );
                 setAlignmentY( BOTTOM_ALIGNMENT );
             }
@@ -86,7 +106,7 @@ public abstract class Components {
     public static JButton button(final String label) {
         return new JButton( label ) {
             {
-                setFont( Res.controlFont().deriveFont( 12f ) );
+                setFont( Res.controlFont().deriveFont( CONTROL_TEXT_SIZE ) );
                 setAlignmentX( LEFT_ALIGNMENT );
                 setAlignmentY( BOTTOM_ALIGNMENT );
             }
@@ -99,8 +119,8 @@ public abstract class Components {
     }
 
     public static Component stud() {
-        Dimension studDimension = new Dimension( 8, 8 );
-        Box.Filler rigidArea = new Box.Filler( studDimension, studDimension, studDimension );
+        Dimension  studDimension = new Dimension( 8, 8 );
+        Box.Filler rigidArea     = new Box.Filler( studDimension, studDimension, studDimension );
         rigidArea.setAlignmentX( Component.LEFT_ALIGNMENT );
         rigidArea.setAlignmentY( Component.BOTTOM_ALIGNMENT );
         rigidArea.setBackground( Color.red );
@@ -142,7 +162,7 @@ public abstract class Components {
     public static JLabel label(@Nullable final String label, final int horizontalAlignment) {
         return new JLabel( label, horizontalAlignment ) {
             {
-                setFont( Res.controlFont().deriveFont( 12f ) );
+                setFont( Res.controlFont().deriveFont( CONTROL_TEXT_SIZE ) );
                 setAlignmentX( LEFT_ALIGNMENT );
                 setAlignmentY( BOTTOM_ALIGNMENT );
             }
@@ -157,7 +177,7 @@ public abstract class Components {
     public static JCheckBox checkBox(final String label) {
         return new JCheckBox( label ) {
             {
-                setFont( Res.controlFont().deriveFont( 12f ) );
+                setFont( Res.controlFont().deriveFont( CONTROL_TEXT_SIZE ) );
                 setBackground( null );
                 setAlignmentX( LEFT_ALIGNMENT );
                 setAlignmentY( BOTTOM_ALIGNMENT );
@@ -177,7 +197,7 @@ public abstract class Components {
                 //                        BorderFactory.createLineBorder( Res.colors().controlBorder(), 1, true ),
                 //                        BorderFactory.createEmptyBorder( 4, 4, 4, 4 ) );
                 //                ((JComponent) ((BasicComboBoxEditor) getEditor()).getEditorComponent()).setBorder(editorBorder);
-                setFont( Res.controlFont().deriveFont( 12f ) );
+                setFont( Res.controlFont().deriveFont( CONTROL_TEXT_SIZE ) );
                 setAlignmentX( LEFT_ALIGNMENT );
                 setAlignmentY( BOTTOM_ALIGNMENT );
                 //                setBorder(null);

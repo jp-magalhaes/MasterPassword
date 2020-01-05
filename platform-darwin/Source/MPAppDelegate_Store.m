@@ -17,7 +17,7 @@
 //==============================================================================
 
 #import "MPAppDelegate_Store.h"
-#import "mpw-marshall.h"
+#import "mpw-marshal.h"
 #import "mpw-util.h"
 
 #if TARGET_OS_IPHONE
@@ -133,12 +133,11 @@ PearlAssociatedObjectProperty( NSNumber*, StoreCorrupted, storeCorrupted );
     return YES;
 }
 
-+ (id)managedObjectContextChanged:(void ( ^ )(NSDictionary<NSManagedObjectID *, NSString *> *affectedObjects))changedBlock {
+- (id)managedObjectContextChanged:(void ( ^ )(NSDictionary<NSManagedObjectID *, NSString *> *affectedObjects))changedBlock {
 
-    NSManagedObjectContext *privateManagedObjectContextIfReady = [[self get] privateManagedObjectContextIfReady];
+    NSManagedObjectContext *privateManagedObjectContextIfReady = [self privateManagedObjectContextIfReady];
     if (!privateManagedObjectContextIfReady)
         return nil;
-
     return PearlAddNotificationObserver( NSManagedObjectContextObjectsDidChangeNotification, privateManagedObjectContextIfReady, nil,
             ^(id host, NSNotification *note) {
                 NSMutableDictionary *affectedObjects = [NSMutableDictionary new];
@@ -217,7 +216,7 @@ PearlAssociatedObjectProperty( NSNumber*, StoreCorrupted, storeCorrupted );
 
         self.mainManagedObjectContext = [[NSManagedObjectContext alloc] initWithConcurrencyType:NSMainQueueConcurrencyType];
         self.mainManagedObjectContext.parentContext = self.privateManagedObjectContext;
-        if ([self.mainManagedObjectContext respondsToSelector:@selector( automaticallyMergesChangesFromParent )]) // iOS 10+
+        if (@available(iOS 10.0, macOS 10.12, *))
             self.mainManagedObjectContext.automaticallyMergesChangesFromParent = YES;
         else
             // When privateManagedObjectContext is saved, import the changes into mainManagedObjectContext.
@@ -566,10 +565,10 @@ PearlAssociatedObjectProperty( NSNumber*, StoreCorrupted, storeCorrupted );
            saveInContext:(NSManagedObjectContext *)context {
 
     // Read metadata for the import file.
-    MPMarshallInfo *info = mpw_marshall_read_info( importData.UTF8String );
-    if (info->format == MPMarshallFormatNone)
-        return MPError( ([NSError errorWithDomain:MPErrorDomain code:MPErrorMarshallCode userInfo:@{
-                @"type"                  : @(MPMarshallErrorFormat),
+    MPMarshalInfo *info = mpw_marshal_read_info( importData.UTF8String );
+    if (info->format == MPMarshalFormatNone)
+        return MPError( ([NSError errorWithDomain:MPErrorDomain code:MPErrorMarshalCode userInfo:@{
+                @"type"                  : @(MPMarshalErrorFormat),
                 NSLocalizedDescriptionKey: @"This is not a Master Password import file.",
         }]), @"While importing sites." );
 
@@ -589,13 +588,13 @@ PearlAssociatedObjectProperty( NSNumber*, StoreCorrupted, storeCorrupted );
                             caseInsensitiveCompare:@(info->keyID)] != NSOrderedSame);
 
     // Parse import data.
-    MPMarshallError importError = { .type = MPMarshallSuccess };
-    MPMarshalledUser *importUser = mpw_marshall_read( importData.UTF8String, info->format, importMasterPassword.UTF8String, &importError );
+    MPMarshalError importError = { .type = MPMarshalSuccess };
+    MPMarshalledUser *importUser = mpw_marshal_read( importData.UTF8String, info->format, importMasterPassword.UTF8String, &importError );
     mpw_marshal_info_free( &info );
 
     @try {
-        if (!importUser || importError.type != MPMarshallSuccess)
-            return MPError( ([NSError errorWithDomain:MPErrorDomain code:MPErrorMarshallCode userInfo:@{
+        if (!importUser || importError.type != MPMarshalSuccess)
+            return MPError( ([NSError errorWithDomain:MPErrorDomain code:MPErrorMarshalCode userInfo:@{
                     @"type"                  : @(importError.type),
                     NSLocalizedDescriptionKey: @(importError.description),
             }]), @"While importing sites." );
@@ -707,7 +706,7 @@ PearlAssociatedObjectProperty( NSNumber*, StoreCorrupted, storeCorrupted );
         NSString *masterPassword = askImportPassword( user.name );
 
         inf( @"Exporting sites, %@, for user: %@", revealPasswords? @"revealing passwords": @"omitting passwords", user.userID );
-        MPMarshalledUser *exportUser = mpw_marshall_user( user.name.UTF8String, masterPassword.UTF8String, user.algorithm.version );
+        MPMarshalledUser *exportUser = mpw_marshal_user( user.name.UTF8String, masterPassword.UTF8String, user.algorithm.version );
         exportUser->redacted = !revealPasswords;
         exportUser->avatar = (unsigned int)user.avatar;
         exportUser->defaultType = user.defaultType;
@@ -721,7 +720,7 @@ PearlAssociatedObjectProperty( NSNumber*, StoreCorrupted, storeCorrupted );
                                 ? [site.algorithm exportPasswordForSite:site usingKey:self.key]
                                 : [site.algorithm resolvePasswordForSite:site usingKey:self.key];
 
-            MPMarshalledSite *exportSite = mpw_marshall_site( exportUser,
+            MPMarshalledSite *exportSite = mpw_marshal_site( exportUser,
                     site.name.UTF8String, site.type, counter, site.algorithm.version );
             exportSite->content = content.UTF8String;
             exportSite->loginContent = site.loginName.UTF8String;
@@ -735,15 +734,15 @@ PearlAssociatedObjectProperty( NSNumber*, StoreCorrupted, storeCorrupted );
         }
 
         char *export = NULL;
-        MPMarshallError exportError = (MPMarshallError){ .type= MPMarshallSuccess };
-        mpw_marshall_write( &export, MPMarshallFormatFlat, exportUser, &exportError );
+        MPMarshalError exportError = (MPMarshalError){ .type= MPMarshalSuccess };
+        mpw_marshal_write( &export, MPMarshalFormatFlat, exportUser, &exportError );
         NSString *mpsites = nil;
-        if (export && exportError.type == MPMarshallSuccess)
+        if (export && exportError.type == MPMarshalSuccess)
             mpsites = [NSString stringWithCString:export encoding:NSUTF8StringEncoding];
         mpw_free_string( &export );
 
-        resultBlock( mpsites, exportError.type == MPMarshallSuccess? nil:
-                              [NSError errorWithDomain:MPErrorDomain code:MPErrorMarshallCode userInfo:@{
+        resultBlock( mpsites, exportError.type == MPMarshalSuccess? nil:
+                              [NSError errorWithDomain:MPErrorDomain code:MPErrorMarshalCode userInfo:@{
                                       @"type"                  : @(exportError.type),
                                       NSLocalizedDescriptionKey: @(exportError.description),
                               }] );

@@ -1,12 +1,12 @@
 allprojects {
-    //apply plugin: 'findbugs'
+    apply plugin: 'findbugs'
 
     group = 'com.lyndir.masterpassword'
     version = 'GIT-SNAPSHOT'
 
     tasks.withType(JavaCompile) {
-        sourceCompatibility = '1.7'
-        targetCompatibility = '1.7'
+        sourceCompatibility = '1.8'
+        targetCompatibility = '1.8'
     }
     tasks.withType(FindBugs) {
         reports {
@@ -22,7 +22,7 @@ buildscript {
     }
 
     dependencies {
-        classpath group: 'com.android.tools.build', name: 'gradle', version: '2.3.0'
+        classpath group: 'com.android.tools.build', name: 'gradle', version: '2.3.2'
     }
 }
 

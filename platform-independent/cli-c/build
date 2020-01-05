@@ -46,7 +46,7 @@ cflags=( -O3 $CFLAGS )
 ldflags=( $LDFLAGS )
 
 # Version.
-if { mpw_version=$(git describe --match '*-cli*' --long --dirty --broken) || mpw_version=$(<VERSION); } 2>/dev/null; then
+if { mpw_version=$(git describe --match '*-cli*' --long --dirty) || mpw_version=$(<VERSION); } 2>/dev/null; then
     cflags+=( -D"MP_VERSION=$mpw_version" )
 fi
 echo 2>&1 "Current mpw source version ${mpw_version:-<unknown>}..."
@@ -73,7 +73,7 @@ mpw() {
     )
 
     # build
-    cc "${cflags[@]}" "$@" "core/base64.c" "core/mpw-algorithm.c" "core/mpw-types.c" "core/mpw-util.c" "core/mpw-marshall-util.c" "core/mpw-marshall.c" "cli/mpw-cli-util.c" \
+    cc "${cflags[@]}" "$@" "core/base64.c" "core/aes.c" "core/mpw-algorithm.c" "core/mpw-types.c" "core/mpw-util.c" "core/mpw-marshal-util.c" "core/mpw-marshal.c" "cli/mpw-cli-util.c" \
        "${ldflags[@]}"     "cli/mpw-cli.c" -o "mpw"
     echo "done!  You can now run ./mpw-cli-tests, ./install or use ./$_"
 }
@@ -98,7 +98,7 @@ mpw-bench() {
     )
 
     # build
-    cc "${cflags[@]}" "$@" "core/base64.c" "core/mpw-algorithm.c" "core/mpw-types.c" "core/mpw-util.c" \
+    cc "${cflags[@]}" "$@" "core/base64.c" "core/aes.c" "core/mpw-algorithm.c" "core/mpw-types.c" "core/mpw-util.c" \
        "${ldflags[@]}"     "cli/mpw-bench.c" -o "mpw-bench"
     echo "done!  You can now use ./$_"
 }
@@ -124,7 +124,7 @@ mpw-tests() {
     )
 
     # build
-    cc "${cflags[@]}" "$@" "core/base64.c" "core/mpw-algorithm.c" "core/mpw-types.c" "core/mpw-util.c" "cli/mpw-tests-util.c" \
+    cc "${cflags[@]}" "$@" "core/base64.c" "core/aes.c" "core/mpw-algorithm.c" "core/mpw-types.c" "core/mpw-util.c" "cli/mpw-tests-util.c" \
        "${ldflags[@]}"     "cli/mpw-tests.c" -o "mpw-tests"
     echo "done!  You can now use ./$_"
 }
@@ -138,7 +138,7 @@ cc() {
     if hash llvm-gcc 2>/dev/null; then
         llvm-gcc "$@"
     elif hash gcc 2>/dev/null; then
-        gcc -std=gnu99 "$@"
+        gcc -std=c11 "$@"
     elif hash clang 2>/dev/null; then
         clang "$@"
     else
@@ -150,13 +150,15 @@ cc() {
 
 ### DEPENDENCIES
 use() {
-    local option=$1 requisite=$2 lib=$3
+    local option=$1 requisite=$2 lib=$3; shift 3
     local enabled=${!option}
 
     if (( enabled )); then
         if haslib "$lib"; then
+            for lib in "$lib" "$@"; do
+                haslib "$lib" && ldflags+=( -l"$lib" )
+            done
             echo >&2 "INFO:     Enabled $option (lib$lib)."
-            ldflags+=( -l"$lib" )
             return 0
 
         elif [[ $requisite == required ]]; then
@@ -184,7 +186,7 @@ use_mpw_sodium() {
 }
 use_mpw_color() {
     local requisite=$1
-    use mpw_color "$requisite" curses && cflags+=( -D"MPW_COLOR=1" ) ||:
+    use mpw_color "$requisite" curses tinfo && cflags+=( -D"MPW_COLOR=1" ) ||:
 }
 use_mpw_json() {
     local requisite=$1

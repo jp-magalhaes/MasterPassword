@@ -18,16 +18,18 @@
 
 package com.lyndir.masterpassword;
 
-import static com.google.common.base.Preconditions.checkNotNull;
+import static com.google.common.base.Preconditions.*;
 import static com.lyndir.lhunath.opal.system.util.ObjectUtils.*;
-import static com.lyndir.lhunath.opal.system.util.StringUtils.strf;
+import static com.lyndir.lhunath.opal.system.util.StringUtils.*;
 
 import com.google.common.primitives.UnsignedInteger;
 import com.lyndir.lhunath.opal.system.logging.Logger;
-import com.lyndir.lhunath.opal.system.util.*;
-import java.util.List;
+import com.lyndir.lhunath.opal.system.util.NNSupplier;
+import java.util.*;
+import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import javax.xml.bind.annotation.XmlTransient;
 
 
 /**
@@ -40,15 +42,25 @@ public class MPTests {
     @SuppressWarnings("UnusedDeclaration")
     private static final Logger logger = Logger.get( MPTests.class );
 
+    private final Set<String> filters = new HashSet<>();
+
     List<Case> cases;
 
     @Nonnull
     public List<Case> getCases() {
-        return checkNotNull( cases );
+        if (filters.isEmpty())
+            return checkNotNull( cases );
+
+        return checkNotNull( cases ).stream().filter( testCase -> {
+            for (final String filter : filters)
+                if (testCase.getIdentifier().startsWith( filter ))
+                    return true;
+            return false;
+        } ).collect( Collectors.toList() );
     }
 
     public Case getCase(final String identifier) {
-        for (final Case testCase : getCases())
+        for (final Case testCase : cases)
             if (identifier.equals( testCase.getIdentifier() ))
                 return testCase;
 
@@ -60,26 +72,33 @@ public class MPTests {
             return getCase( ID_DEFAULT );
         }
         catch (final IllegalArgumentException e) {
-            throw new IllegalStateException( strf( "Missing default case in test suite.  Add a case with id: %d", ID_DEFAULT ), e );
+            throw new IllegalStateException( strf( "Missing default case in test suite.  Add a case with id: %s", ID_DEFAULT ), e );
         }
+    }
+
+    public boolean addFilters(final String... filters) {
+        return this.filters.addAll( Arrays.asList( filters ) );
     }
 
     public static class Case {
 
-        String  identifier;
-        String  parent;
+        String identifier;
+        String parent;
+        @Nullable
         Integer algorithm;
-        String  fullName;
-        String  masterPassword;
-        String  keyID;
-        String  siteName;
+        String fullName;
+        String masterPassword;
+        String keyID;
+        String siteName;
+        @Nullable
         UnsignedInteger siteCounter;
-        String  siteType;
-        String  siteVariant;
-        String  siteContext;
-        String  result;
+        String resultType;
+        String keyPurpose;
+        String keyContext;
+        String result;
 
-        private transient Case parentCase;
+        @XmlTransient
+        private Case parentCase;
 
         public void initializeParentHierarchy(final MPTests tests) {
 
@@ -130,25 +149,25 @@ public class MPTests {
                     return checkNotNull( parentCase.siteCounter );
                 }
             } );
-            siteType = ifNotNullElse( siteType, new NNSupplier<String>() {
+            resultType = ifNotNullElse( resultType, new NNSupplier<String>() {
                 @Nonnull
                 @Override
                 public String get() {
-                    return checkNotNull( parentCase.siteType );
+                    return checkNotNull( parentCase.resultType );
                 }
             } );
-            siteVariant = ifNotNullElse( siteVariant, new NNSupplier<String>() {
+            keyPurpose = ifNotNullElse( keyPurpose, new NNSupplier<String>() {
                 @Nonnull
                 @Override
                 public String get() {
-                    return checkNotNull( parentCase.siteVariant );
+                    return checkNotNull( parentCase.keyPurpose );
                 }
             } );
-            siteContext = ifNotNullElse( siteContext, new NNSupplier<String>() {
+            keyContext = ifNotNullElse( keyContext, new NNSupplier<String>() {
                 @Nonnull
                 @Override
                 public String get() {
-                    return (parentCase == null)? "": checkNotNull( parentCase.siteContext );
+                    return (parentCase == null)? "": checkNotNull( parentCase.keyContext );
                 }
             } );
             result = ifNotNullElse( result, new NNSupplier<String>() {
@@ -171,8 +190,8 @@ public class MPTests {
         }
 
         @Nonnull
-        public MasterKey.Version getAlgorithm() {
-            return MasterKey.Version.fromInt( checkNotNull( algorithm ) );
+        public MPAlgorithm getAlgorithm() {
+            return MPAlgorithm.Version.fromInt( checkNotNull( algorithm ) ).getAlgorithm();
         }
 
         @Nonnull
@@ -181,8 +200,8 @@ public class MPTests {
         }
 
         @Nonnull
-        public char[] getMasterPassword() {
-            return checkNotNull( masterPassword ).toCharArray();
+        public String getMasterPassword() {
+            return checkNotNull( masterPassword );
         }
 
         @Nonnull
@@ -200,18 +219,18 @@ public class MPTests {
         }
 
         @Nonnull
-        public MPSiteType getSiteType() {
-            return MPSiteType.forName( checkNotNull( siteType ) );
+        public MPResultType getResultType() {
+            return MPResultType.forName( checkNotNull( resultType ) );
         }
 
         @Nonnull
-        public MPSiteVariant getSiteVariant() {
-            return MPSiteVariant.forName( checkNotNull( siteVariant ) );
+        public MPKeyPurpose getKeyPurpose() {
+            return MPKeyPurpose.forName( checkNotNull( keyPurpose ) );
         }
 
         @Nonnull
-        public String getSiteContext() {
-            return checkNotNull( siteContext );
+        public String getKeyContext() {
+            return checkNotNull( keyContext );
         }
 
         @Nonnull

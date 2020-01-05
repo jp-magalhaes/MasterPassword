@@ -1,153 +1,96 @@
+//==============================================================================
+// This file is part of Master Password.
+// Copyright (c) 2011-2017, Maarten Billemont.
+//
+// Master Password is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Master Password is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You can find a copy of the GNU General Public License in the
+// LICENSE file.  Alternatively, see <http://www.gnu.org/licenses/>.
+//==============================================================================
+
 package com.lyndir.masterpassword.model;
 
-import static com.lyndir.lhunath.opal.system.util.StringUtils.*;
-
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Sets;
-import com.lyndir.lhunath.opal.system.CodeUtils;
-import com.lyndir.masterpassword.MPSiteType;
-import com.lyndir.masterpassword.MasterKey;
-import java.util.*;
+import com.lyndir.masterpassword.*;
+import java.util.Collection;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import org.joda.time.*;
 
 
 /**
- * @author lhunath, 14-12-07
+ * @author lhunath, 2018-05-14
  */
-public class MPUser implements Comparable<MPUser> {
+public interface MPUser<S extends MPSite<?>> extends Comparable<MPUser<?>> {
 
-    private final String fullName;
-    private final Collection<MPSite> sites = Sets.newHashSet();
+    // - Meta
+
+    int getAvatar();
+
+    void setAvatar(int avatar);
+
+    @Nonnull
+    String getFullName();
+
+    // - Algorithm
+
+    @Nonnull
+    MPAlgorithm getAlgorithm();
+
+    void setAlgorithm(MPAlgorithm algorithm);
 
     @Nullable
-    private       byte[]            keyID;
-    private final MasterKey.Version algorithmVersion;
-    private       int               avatar;
-    private       MPSiteType        defaultType;
-    private       ReadableInstant   lastUsed;
+    byte[] getKeyID();
 
-    public MPUser(final String fullName) {
-        this( fullName, null );
-    }
-
-    public MPUser(final String fullName, @Nullable final byte[] keyID) {
-        this( fullName, keyID, MasterKey.Version.CURRENT, 0, MPSiteType.GeneratedLong, new DateTime() );
-    }
-
-    public MPUser(final String fullName, @Nullable final byte[] keyID, final MasterKey.Version algorithmVersion, final int avatar,
-                  final MPSiteType defaultType, final ReadableInstant lastUsed) {
-        this.fullName = fullName;
-        this.keyID = (keyID == null)? null: keyID.clone();
-        this.algorithmVersion = algorithmVersion;
-        this.avatar = avatar;
-        this.defaultType = defaultType;
-        this.lastUsed = lastUsed;
-    }
-
-    public Collection<MPSiteResult> findSitesByName(final String query) {
-        ImmutableList.Builder<MPSiteResult> results = ImmutableList.builder();
-        for (final MPSite site : getSites())
-            if (site.getSiteName().startsWith( query ))
-                results.add( new MPSiteResult( site ) );
-
-        return results.build();
-    }
-
-    public void addSite(final MPSite site) {
-        sites.add( site );
-    }
-
-    public void deleteSite(final MPSite site) {
-        sites.remove( site );
-    }
-
-    public String getFullName() {
-        return fullName;
-    }
-
-    public boolean hasKeyID() {
-        return keyID != null;
-    }
-
-    public String exportKeyID() {
-        return CodeUtils.encodeHex( keyID );
-    }
+    @Nullable
+    String exportKeyID();
 
     /**
      * Performs an authentication attempt against the keyID for this user.
      *
-     * Note: If this user doesn't have a keyID set yet, authentication will always succeed and the key ID will be set as a result.
+     * Note: If a keyID is not set, authentication will always succeed and the keyID will be set to match the given master password.
      *
      * @param masterPassword The password to authenticate with.
+     *                       You cannot re-use this array after passing it in, authentication will destroy its contents.
      *
-     * @return The master key for the user if authentication was successful.
-     *
-     * @throws IncorrectMasterPasswordException If authentication fails due to the given master password not matching the user's keyID.
+     * @throws MPIncorrectMasterPasswordException If authentication fails due to the given master password not matching the user's keyID.
      */
+    void authenticate(char[] masterPassword)
+            throws MPIncorrectMasterPasswordException, MPAlgorithmException;
+
+    /**
+     * Performs an authentication attempt against the keyID for this user.
+     *
+     * Note: If a keyID is not set, authentication will always succeed and the keyID will be set to match the given key.
+     *
+     * @param masterKey The master key to authenticate with.
+     *
+     * @throws MPIncorrectMasterPasswordException If authentication fails due to the given master password not matching the user's keyID.
+     */
+    void authenticate(MPMasterKey masterKey)
+            throws MPIncorrectMasterPasswordException, MPKeyUnavailableException, MPAlgorithmException;
+
+    boolean isMasterKeyAvailable();
+
     @Nonnull
-    @SuppressWarnings("MethodCanBeVariableArityMethod")
-    public MasterKey authenticate(final char[] masterPassword)
-            throws IncorrectMasterPasswordException {
-        MasterKey masterKey = MasterKey.create( algorithmVersion, getFullName(), masterPassword );
-        if ((keyID == null) || (keyID.length == 0))
-            keyID = masterKey.getKeyID();
-        else if (!Arrays.equals( masterKey.getKeyID(), keyID ))
-            throw new IncorrectMasterPasswordException( this );
+    MPMasterKey getMasterKey()
+            throws MPKeyUnavailableException;
 
-        return masterKey;
-    }
+    // - Relations
 
-    public int getAvatar() {
-        return avatar;
-    }
+    void addSite(S site);
 
-    public void setAvatar(final int avatar) {
-        this.avatar = avatar;
-    }
+    void deleteSite(S site);
 
-    public MPSiteType getDefaultType() {
-        return defaultType;
-    }
+    @Nonnull
+    Collection<S> getSites();
 
-    public void setDefaultType(final MPSiteType defaultType) {
-        this.defaultType = defaultType;
-    }
-
-    public ReadableInstant getLastUsed() {
-        return lastUsed;
-    }
-
-    public void updateLastUsed() {
-        lastUsed = new Instant();
-    }
-
-    public Iterable<MPSite> getSites() {
-        return sites;
-    }
-
-    @Override
-    public boolean equals(final Object obj) {
-        return (this == obj) || ((obj instanceof MPUser) && Objects.equals( fullName, ((MPUser) obj).fullName ));
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hashCode( fullName );
-    }
-
-    @Override
-    public String toString() {
-        return strf( "{MPUser: %s}", fullName );
-    }
-
-    @Override
-    public int compareTo(final MPUser o) {
-        int comparison = lastUsed.compareTo( o.lastUsed );
-        if (comparison == 0)
-            comparison = fullName.compareTo( o.fullName );
-
-        return comparison;
-    }
+    @Nonnull
+    Collection<S> findSites(String query);
 }

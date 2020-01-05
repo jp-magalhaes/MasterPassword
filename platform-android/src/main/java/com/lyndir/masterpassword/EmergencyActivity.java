@@ -18,7 +18,7 @@
 
 package com.lyndir.masterpassword;
 
-import static com.lyndir.lhunath.opal.system.util.StringUtils.strf;
+import static com.lyndir.lhunath.opal.system.util.StringUtils.*;
 
 import android.app.*;
 import android.content.*;
@@ -33,14 +33,15 @@ import android.view.WindowManager;
 import android.widget.*;
 import butterknife.BindView;
 import butterknife.ButterKnife;
-import com.google.common.base.Throwables;
 import com.google.common.collect.ImmutableList;
 import com.google.common.primitives.UnsignedInteger;
-import com.google.common.util.concurrent.*;
+import com.google.common.util.concurrent.ListeningExecutorService;
+import com.google.common.util.concurrent.MoreExecutors;
 import com.lyndir.lhunath.opal.system.logging.Logger;
+import com.lyndir.masterpassword.model.MPConstant;
 import java.text.MessageFormat;
 import java.util.*;
-import java.util.concurrent.*;
+import java.util.concurrent.Executors;
 import javax.annotation.Nullable;
 
 
@@ -50,14 +51,17 @@ public class EmergencyActivity extends Activity {
     private static final Logger   logger                = Logger.get( EmergencyActivity.class );
     private static final ClipData EMPTY_CLIP            = new ClipData( new ClipDescription( "", new String[0] ), new ClipData.Item( "" ) );
     private static final int      PASSWORD_NOTIFICATION = 0;
-    public static final int CLIPBOARD_CLEAR_DELAY = 20 /* s */ * MPConstant.MS_PER_S;
+    private static final int      CLIPBOARD_CLEAR_DELAY = 20 /* s */ * MPConstant.MS_PER_S;
 
-    private final Preferences                      preferences  = Preferences.get( this );
-    private final ListeningExecutorService         executor     = MoreExecutors.listeningDecorator( Executors.newSingleThreadExecutor() );
-    private final ImmutableList<MPSiteType>        allSiteTypes = ImmutableList.copyOf( MPSiteType.forClass( MPSiteTypeClass.Generated ) );
-    private final ImmutableList<MasterKey.Version> allVersions  = ImmutableList.copyOf( MasterKey.Version.values() );
+    private final Preferences                        preferences    = Preferences.get( this );
+    private final ListeningExecutorService           executor       = MoreExecutors.listeningDecorator(
+            Executors.newSingleThreadExecutor() );
+    private final ImmutableList<MPResultType>        allResultTypes = ImmutableList.copyOf(
+            MPResultType.forClass( MPResultTypeClass.Template ) );
+    private final ImmutableList<MPAlgorithm.Version> allVersions    = ImmutableList.copyOf( MPAlgorithm.Version.values() );
 
-    private ListenableFuture<MasterKey> masterKeyFuture;
+    @Nullable
+    private MPMasterKey masterKey;
 
     @BindView(R.id.progressView)
     ProgressBar progressView;
@@ -71,8 +75,8 @@ public class EmergencyActivity extends Activity {
     @BindView(R.id.siteNameField)
     EditText siteNameField;
 
-    @BindView(R.id.siteTypeButton)
-    Button siteTypeButton;
+    @BindView(R.id.resultTypeButton)
+    Button resultTypeButton;
 
     @BindView(R.id.counterField)
     Button siteCounterButton;
@@ -97,7 +101,7 @@ public class EmergencyActivity extends Activity {
 
     private int    id_userName;
     private int    id_masterPassword;
-    private int    id_version;
+    @Nullable
     private String sitePassword;
 
     public static void start(final Context context) {
@@ -131,15 +135,15 @@ public class EmergencyActivity extends Activity {
                 updateSitePassword();
             }
         } );
-        siteTypeButton.setOnClickListener( new View.OnClickListener() {
+        resultTypeButton.setOnClickListener( new View.OnClickListener() {
             @Override
             public void onClick(final View v) {
                 @SuppressWarnings("SuspiciousMethodCalls")
-                MPSiteType siteType =
-                        allSiteTypes.get( (allSiteTypes.indexOf( siteTypeButton.getTag() ) + 1) % allSiteTypes.size() );
-                preferences.setDefaultSiteType( siteType );
-                siteTypeButton.setTag( siteType );
-                siteTypeButton.setText( siteType.getShortName() );
+                MPResultType resultType =
+                        allResultTypes.get( (allResultTypes.indexOf( resultTypeButton.getTag() ) + 1) % allResultTypes.size() );
+                preferences.setDefaultResultType( resultType );
+                resultTypeButton.setTag( resultType );
+                resultTypeButton.setText( resultType.getShortName() );
                 updateSitePassword();
             }
         } );
@@ -156,7 +160,7 @@ public class EmergencyActivity extends Activity {
             @Override
             public void onClick(final View v) {
                 @SuppressWarnings("SuspiciousMethodCalls")
-                MasterKey.Version siteVersion =
+                MPAlgorithm.Version siteVersion =
                         allVersions.get( (allVersions.indexOf( siteVersionButton.getTag() ) + 1) % allVersions.size() );
                 preferences.setDefaultVersion( siteVersion );
                 siteVersionButton.setTag( siteVersion );
@@ -175,13 +179,13 @@ public class EmergencyActivity extends Activity {
             }
         } );
 
-        fullNameField.setTypeface( Res.get( this ).exo_Thin );
+        fullNameField.setTypeface( Res.get( this ).exo_Thin() );
         fullNameField.setPaintFlags( fullNameField.getPaintFlags() | Paint.SUBPIXEL_TEXT_FLAG );
-        masterPasswordField.setTypeface( Res.get( this ).sourceCodePro_ExtraLight );
+        masterPasswordField.setTypeface( Res.get( this ).sourceCodePro_ExtraLight() );
         masterPasswordField.setPaintFlags( masterPasswordField.getPaintFlags() | Paint.SUBPIXEL_TEXT_FLAG );
-        siteNameField.setTypeface( Res.get( this ).exo_Regular );
+        siteNameField.setTypeface( Res.get( this ).exo_Regular() );
         siteNameField.setPaintFlags( siteNameField.getPaintFlags() | Paint.SUBPIXEL_TEXT_FLAG );
-        sitePasswordField.setTypeface( Res.get( this ).sourceCodePro_Black );
+        sitePasswordField.setTypeface( Res.get( this ).sourceCodePro_Black() );
         sitePasswordField.setPaintFlags( sitePasswordField.getPaintFlags() | Paint.SUBPIXEL_TEXT_FLAG );
 
         rememberFullNameField.setOnCheckedChangeListener( new CompoundButton.OnCheckedChangeListener() {
@@ -213,17 +217,17 @@ public class EmergencyActivity extends Activity {
     protected void onResume() {
         super.onResume();
 
-        MasterKey.setAllowNativeByDefault( preferences.isAllowNativeKDF() );
+        // FIXME:       MasterKey.setAllowNativeByDefault( preferences.isAllowNativeKDF() );
 
         fullNameField.setText( preferences.getFullName() );
         rememberFullNameField.setChecked( preferences.isRememberFullName() );
         forgetPasswordField.setChecked( preferences.isForgetPassword() );
         maskPasswordField.setChecked( preferences.isMaskPassword() );
         sitePasswordField.setTransformationMethod( preferences.isMaskPassword()? new PasswordTransformationMethod(): null );
-        MPSiteType defaultSiteType = preferences.getDefaultSiteType();
-        siteTypeButton.setTag( defaultSiteType );
-        siteTypeButton.setText( defaultSiteType.getShortName() );
-        MasterKey.Version defaultVersion = preferences.getDefaultVersion();
+        MPResultType defaultResultType = preferences.getDefaultResultType();
+        resultTypeButton.setTag( defaultResultType );
+        resultTypeButton.setText( defaultResultType.getShortName() );
+        MPAlgorithm.Version defaultVersion = preferences.getDefaultVersion();
         siteVersionButton.setTag( defaultVersion );
         siteVersionButton.setText( defaultVersion.name() );
         siteCounterButton.setText( MessageFormat.format( "{0}", 1 ) );
@@ -241,10 +245,8 @@ public class EmergencyActivity extends Activity {
         if (preferences.isForgetPassword()) {
             synchronized (this) {
                 id_userName = id_masterPassword = 0;
-                if (masterKeyFuture != null) {
-                    masterKeyFuture.cancel( true );
-                    masterKeyFuture = null;
-                }
+                if (masterKey != null)
+                    masterKey = null;
 
                 masterPasswordField.setText( "" );
             }
@@ -258,24 +260,18 @@ public class EmergencyActivity extends Activity {
     }
 
     private synchronized void updateMasterKey() {
-        final String fullName = fullNameField.getText().toString();
-        final char[] masterPassword = masterPasswordField.getText().toString().toCharArray();
-        final MasterKey.Version version = (MasterKey.Version) siteVersionButton.getTag();
+        String fullName       = fullNameField.getText().toString();
+        char[] masterPassword = masterPasswordField.getText().toString().toCharArray();
         if ((id_userName == fullName.hashCode())
-            && (id_masterPassword == Arrays.hashCode( masterPassword ))
-            && (id_version == version.ordinal()))
-            if ((masterKeyFuture != null) && !masterKeyFuture.isCancelled())
+            && (id_masterPassword == Arrays.hashCode( masterPassword )))
+            if (masterKey != null)
                 return;
 
         id_userName = fullName.hashCode();
         id_masterPassword = Arrays.hashCode( masterPassword );
-        id_version = version.ordinal();
 
         if (preferences.isRememberFullName())
             preferences.setFullName( fullName );
-
-        if (masterKeyFuture != null)
-            masterKeyFuture.cancel( true );
 
         if (fullName.isEmpty() || (masterPassword.length == 0)) {
             sitePasswordField.setText( "" );
@@ -285,43 +281,21 @@ public class EmergencyActivity extends Activity {
 
         sitePasswordField.setText( "" );
         progressView.setVisibility( View.VISIBLE );
-        (masterKeyFuture = executor.submit( new Callable<MasterKey>() {
-            @Override
-            public MasterKey call()
-                    throws Exception {
-                try {
-                    return MasterKey.create( version, fullName, masterPassword );
-                }
-                catch (final Exception e) {
-                    sitePasswordField.setText( "" );
-                    progressView.setVisibility( View.INVISIBLE );
-                    logger.err( e, "While generating master key." );
-                    throw e;
-                }
-            }
-        } )).addListener( new Runnable() {
-            @Override
-            public void run() {
-                runOnUiThread( new Runnable() {
-                    @Override
-                    public void run() {
-                        updateSitePassword();
-                    }
-                } );
-            }
-        }, executor );
+        masterKey = new MPMasterKey( fullName, masterPassword );
+        updateSitePassword();
     }
 
     private void updateSitePassword() {
-        final String siteName = siteNameField.getText().toString();
-        final MPSiteType type = (MPSiteType) siteTypeButton.getTag();
-        final UnsignedInteger counter = UnsignedInteger.valueOf( siteCounterButton.getText().toString() );
+        final String              siteName = siteNameField.getText().toString();
+        final MPResultType        type     = (MPResultType) resultTypeButton.getTag();
+        final UnsignedInteger     counter  = UnsignedInteger.valueOf( siteCounterButton.getText().toString() );
+        final MPAlgorithm.Version version  = (MPAlgorithm.Version) siteVersionButton.getTag();
 
-        if ((masterKeyFuture == null) || siteName.isEmpty() || (type == null)) {
+        if ((masterKey == null) || siteName.isEmpty() || (type == null)) {
             sitePasswordField.setText( "" );
             progressView.setVisibility( View.INVISIBLE );
 
-            if (masterKeyFuture == null)
+            if (masterKey == null)
                 updateMasterKey();
             return;
         }
@@ -332,7 +306,8 @@ public class EmergencyActivity extends Activity {
             @Override
             public void run() {
                 try {
-                    sitePassword = masterKeyFuture.get().encode( siteName, type, counter, MPSiteVariant.Password, null );
+                    sitePassword = masterKey.siteResult( siteName, version.getAlgorithm(), counter,
+                                                         MPKeyPurpose.Authentication, null, type, null );
 
                     runOnUiThread( new Runnable() {
                         @Override
@@ -342,15 +317,9 @@ public class EmergencyActivity extends Activity {
                         }
                     } );
                 }
-                catch (final InterruptedException ignored) {
+                catch (final MPKeyUnavailableException ignored) {
                     sitePasswordField.setText( "" );
                     progressView.setVisibility( View.INVISIBLE );
-                }
-                catch (final ExecutionException e) {
-                    sitePasswordField.setText( "" );
-                    progressView.setVisibility( View.INVISIBLE );
-                    logger.err( e, "While generating site password." );
-                    throw Throwables.propagate( e );
                 }
                 catch (final RuntimeException e) {
                     sitePasswordField.setText( "" );
@@ -363,10 +332,9 @@ public class EmergencyActivity extends Activity {
     }
 
     public void integrityTests(final View view) {
-        if (masterKeyFuture != null) {
-            masterKeyFuture.cancel( true );
-            masterKeyFuture = null;
-        }
+        if (masterKey != null)
+            masterKey = null;
+
         TestActivity.startNoSkip( this );
     }
 
@@ -375,33 +343,41 @@ public class EmergencyActivity extends Activity {
         if (TextUtils.isEmpty( currentSitePassword ))
             return;
 
-        final ClipboardManager clipboardManager = (ClipboardManager) getSystemService( CLIPBOARD_SERVICE );
+        final ClipboardManager    clipboardManager    = (ClipboardManager) getSystemService( CLIPBOARD_SERVICE );
         final NotificationManager notificationManager = (NotificationManager) getSystemService( Context.NOTIFICATION_SERVICE );
+        if (clipboardManager == null)
+            return;
 
-        String title = strf( "Password for %s", siteNameField.getText() );
+        String          title       = strf( "Password for %s", siteNameField.getText() );
         ClipDescription description = new ClipDescription( title, new String[]{ ClipDescription.MIMETYPE_TEXT_PLAIN } );
         clipboardManager.setPrimaryClip( new ClipData( description, new ClipData.Item( currentSitePassword ) ) );
 
-        Notification.Builder notificationBuilder = new Notification.Builder( this ).setContentTitle( title )
-                                                                                   .setContentText( "Paste the password into your app." )
-                                                                                   .setSmallIcon( R.drawable.icon )
-                                                                                   .setAutoCancel( true );
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP)
-            notificationBuilder.setVisibility( Notification.VISIBILITY_SECRET )
-                               .setCategory( Notification.CATEGORY_RECOMMENDATION )
-                               .setLocalOnly( true );
-        notificationManager.notify( PASSWORD_NOTIFICATION, notificationBuilder.build() );
+        if (notificationManager != null) {
+            Notification.Builder notificationBuilder = new Notification.Builder( this ).setContentTitle( title )
+                                                                                       .setContentText(
+                                                                                               "Paste the password into your app." )
+                                                                                       .setSmallIcon( R.drawable.icon )
+                                                                                       .setAutoCancel( true );
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP)
+                notificationBuilder.setVisibility( Notification.VISIBILITY_SECRET )
+                                   .setCategory( Notification.CATEGORY_RECOMMENDATION )
+                                   .setLocalOnly( true );
+            notificationManager.notify( PASSWORD_NOTIFICATION, notificationBuilder.build() );
+        }
+
         final Timer timer = new Timer();
         timer.schedule( new TimerTask() {
             @Override
             public void run() {
                 ClipData clip = clipboardManager.getPrimaryClip();
                 for (int i = 0; i < clip.getItemCount(); ++i)
-                    if (currentSitePassword.equals( clip.getItemAt( i ).coerceToText( EmergencyActivity.this ) )) {
+                    if (currentSitePassword.contentEquals( clip.getItemAt( i ).coerceToText( EmergencyActivity.this ) )) {
                         clipboardManager.setPrimaryClip( EMPTY_CLIP );
                         break;
                     }
-                notificationManager.cancel( PASSWORD_NOTIFICATION );
+
+                if (notificationManager != null)
+                    notificationManager.cancel( PASSWORD_NOTIFICATION );
                 timer.cancel();
             }
         }, CLIPBOARD_CLEAR_DELAY );

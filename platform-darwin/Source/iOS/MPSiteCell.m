@@ -572,7 +572,6 @@
 
         // Calculate Fields
         if (![MPiOSAppDelegate managedObjectContextPerformBlock:^(NSManagedObjectContext *context) {
-            MPSiteEntity *site = [self siteInContext:context];
             MPKey *key = [MPiOSAppDelegate get].key;
             if (!key) {
                 wrn( @"Could not load cell content: key unavailable." );
@@ -583,6 +582,7 @@
                 return;
             }
 
+            MPSiteEntity *site = [self siteInContext:context];
             BOOL loginGenerated = site.loginGenerated;
             NSString *password = nil, *loginName = [site resolveLoginUsingKey:key];
             MPResultType transientType = [[MPiOSAppDelegate get] activeUserInContext:context].defaultType?: MPAlgorithmDefault.defaultType;
@@ -677,7 +677,7 @@
         [self.window endEditing:YES];
 
         UIPasteboard *pasteboard = [UIPasteboard generalPasteboard];
-        if ([pasteboard respondsToSelector:@selector( setItems:options: )]) {
+        if (@available(iOS 10.0, *)) {
             [pasteboard setItems:@[ @{ UIPasteboardTypeAutomatic: password } ]
                          options:@{
                                  UIPasteboardOptionLocalOnly     : @NO,

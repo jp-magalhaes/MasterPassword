@@ -32,15 +32,15 @@ import javax.annotation.Nullable;
  */
 public final class Preferences {
 
-    private static final String PREF_TESTS_PASSED       = "integrityTestsPassed";
-    private static final String PREF_NATIVE_KDF         = "nativeKDF";
-    private static final String PREF_REMEMBER_FULL_NAME = "rememberFullName";
-    private static final String PREF_FORGET_PASSWORD    = "forgetPassword";
-    private static final String PREF_MASK_PASSWORD      = "maskPassword";
-    private static final String PREF_FULL_NAME          = "fullName";
-    private static final String PREF_SITE_TYPE          = "siteType";
-    private static final String PREF_ALGORITHM_VERSION  = "algorithmVersion";
-    private static Preferences instance;
+    private static final String      PREF_TESTS_PASSED       = "integrityTestsPassed";
+    private static final String      PREF_NATIVE_KDF         = "nativeKDF";
+    private static final String      PREF_REMEMBER_FULL_NAME = "rememberFullName";
+    private static final String      PREF_FORGET_PASSWORD    = "forgetPassword";
+    private static final String      PREF_MASK_PASSWORD      = "maskPassword";
+    private static final String      PREF_FULL_NAME          = "fullName";
+    private static final String      PREF_RESULT_TYPE        = "resultType";
+    private static final String      PREF_ALGORITHM_VERSION  = "algorithmVersion";
+    private static       Preferences instance;
 
     private Context           context;
     @Nullable
@@ -74,7 +74,7 @@ public final class Preferences {
     }
 
     public boolean isAllowNativeKDF() {
-        return prefs().getBoolean( PREF_NATIVE_KDF, MasterKey.isAllowNativeByDefault() );
+        return prefs().getBoolean( PREF_NATIVE_KDF, true );
     }
 
     public boolean setTestsPassed(final Set<String> value) {
@@ -86,7 +86,7 @@ public final class Preferences {
     }
 
     public Set<String> getTestsPassed() {
-        return prefs().getStringSet( PREF_TESTS_PASSED, ImmutableSet.<String>of() );
+        return prefs().getStringSet( PREF_TESTS_PASSED, ImmutableSet.of() );
     }
 
     public boolean setRememberFullName(final boolean enabled) {
@@ -138,20 +138,21 @@ public final class Preferences {
         return prefs().getString( PREF_FULL_NAME, "" );
     }
 
-    public boolean setDefaultSiteType(@Nonnull final MPSiteType value) {
-        if (getDefaultSiteType() == value)
+    public boolean setDefaultResultType(final MPResultType value) {
+        if (getDefaultResultType() == value)
             return false;
 
-        prefs().edit().putInt( PREF_SITE_TYPE, value.ordinal() ).apply();
+        prefs().edit().putInt( PREF_RESULT_TYPE, value.ordinal() ).apply();
         return true;
     }
 
     @Nonnull
-    public MPSiteType getDefaultSiteType() {
-        return MPSiteType.values()[prefs().getInt( PREF_SITE_TYPE, MPSiteType.GeneratedLong.ordinal() )];
+    public MPResultType getDefaultResultType() {
+        return MPResultType.values()[
+                prefs().getInt( PREF_RESULT_TYPE, getDefaultVersion().getAlgorithm().mpw_default_result_type().ordinal() )];
     }
 
-    public boolean setDefaultVersion(@Nonnull final MasterKey.Version value) {
+    public boolean setDefaultVersion(final MPAlgorithm.Version value) {
         if (getDefaultVersion() == value)
             return false;
 
@@ -160,7 +161,8 @@ public final class Preferences {
     }
 
     @Nonnull
-    public MasterKey.Version getDefaultVersion() {
-        return MasterKey.Version.values()[prefs().getInt( PREF_ALGORITHM_VERSION, MasterKey.Version.CURRENT.ordinal() )];
+    public MPAlgorithm.Version getDefaultVersion() {
+        return MPAlgorithm.Version.values()[
+                prefs().getInt( PREF_ALGORITHM_VERSION, MPAlgorithm.Version.CURRENT.ordinal() )];
     }
 }

@@ -41,6 +41,7 @@
 
 #include "blf.h"
 #include "blowfish.h"
+#include "mpw-util.h"
 
 /* This implementation is adaptable to current computing power.
  * You can have up to 2^31 rounds which should be enough for some
@@ -186,10 +187,10 @@ bcrypt_hashpass(const char *key, const uint8_t *salt, char *encrypted,
     snprintf( encrypted, 8, "$2%c$%2.2u$", minor, logr );
     encode_base64( encrypted + 7, csalt, BCRYPT_MAXSALT );
     encode_base64( encrypted + 7 + 22, ciphertext, 4 * BCRYPT_WORDS - 1 );
-    bzero( &state, sizeof( state ) );
-    bzero( ciphertext, sizeof( ciphertext ) );
-    bzero( csalt, sizeof( csalt ) );
-    bzero( cdata, sizeof( cdata ) );
+    mpw_zero( &state, sizeof state );
+    mpw_zero( ciphertext, sizeof ciphertext );
+    mpw_zero( csalt, sizeof csalt );
+    mpw_zero( cdata, sizeof cdata );
     return 0;
 
     inval:

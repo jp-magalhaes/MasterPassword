@@ -23,12 +23,10 @@ import com.google.common.collect.Lists;
 import com.google.common.primitives.UnsignedInteger;
 import com.lyndir.lhunath.opal.system.logging.Logger;
 import com.lyndir.lhunath.opal.system.util.ConversionUtils;
-import com.lyndir.lhunath.opal.system.util.NNFunctionNN;
 import java.io.IOException;
-import java.util.Deque;
-import java.util.List;
+import java.net.URL;
+import java.util.*;
 import java.util.concurrent.Callable;
-import javax.annotation.Nonnull;
 import javax.xml.parsers.*;
 import org.xml.sax.Attributes;
 import org.xml.sax.SAXException;
@@ -38,7 +36,7 @@ import org.xml.sax.ext.DefaultHandler2;
 /**
  * @author lhunath, 2015-12-22
  */
-@SuppressWarnings("HardCodedStringLiteral")
+@SuppressWarnings({ "HardCodedStringLiteral", "ProhibitedExceptionDeclared" })
 public class MPTestSuite implements Callable<Boolean> {
 
     @SuppressWarnings("UnusedDeclaration")
@@ -58,7 +56,8 @@ public class MPTestSuite implements Callable<Boolean> {
         try {
             tests = new MPTests();
             tests.cases = Lists.newLinkedList();
-            SAXParser parser = SAXParserFactory.newInstance().newSAXParser();
+            SAXParser        parser    = SAXParserFactory.newInstance().newSAXParser();
+            Enumeration<URL> resources = Thread.currentThread().getContextClassLoader().getResources( "." );
             parser.parse( Thread.currentThread().getContextClassLoader().getResourceAsStream( resourceName ), new DefaultHandler2() {
                 private final Deque<String> currentTags = Lists.newLinkedList();
                 private final Deque<StringBuilder> currentTexts = Lists.newLinkedList();
@@ -83,12 +82,12 @@ public class MPTestSuite implements Callable<Boolean> {
                         throws SAXException {
                     super.endElement( uri, localName, qName );
                     Preconditions.checkState( qName.equals( currentTags.pop() ) );
-                    String text = currentTexts.pop().toString();
+                    String text = Preconditions.checkNotNull( currentTexts.pop() ).toString();
 
                     if ("case".equals( qName ))
                         tests.cases.add( currentCase );
                     if ("algorithm".equals( qName ))
-                        currentCase.algorithm = ConversionUtils.toInteger( text ).orNull();
+                        currentCase.algorithm = ConversionUtils.toInteger( text ).orElse( null );
                     if ("fullName".equals( qName ))
                         currentCase.fullName = text;
                     if ("masterPassword".equals( qName ))
@@ -99,12 +98,12 @@ public class MPTestSuite implements Callable<Boolean> {
                         currentCase.siteName = text;
                     if ("siteCounter".equals( qName ))
                         currentCase.siteCounter = text.isEmpty()? null: UnsignedInteger.valueOf( text );
-                    if ("siteType".equals( qName ))
-                        currentCase.siteType = text;
-                    if ("siteVariant".equals( qName ))
-                        currentCase.siteVariant = text;
-                    if ("siteContext".equals( qName ))
-                        currentCase.siteContext = text;
+                    if ("resultType".equals( qName ))
+                        currentCase.resultType = text;
+                    if ("keyPurpose".equals( qName ))
+                        currentCase.keyPurpose = text;
+                    if ("keyContext".equals( qName ))
+                        currentCase.keyContext = text;
                     if ("result".equals( qName ))
                         currentCase.result = text;
                 }
@@ -114,11 +113,11 @@ public class MPTestSuite implements Callable<Boolean> {
                         throws SAXException {
                     super.characters( ch, start, length );
 
-                    currentTexts.peek().append( ch, start, length );
+                    Preconditions.checkNotNull( currentTexts.peek() ).append( ch, start, length );
                 }
             } );
         }
-        catch (IllegalArgumentException | ParserConfigurationException | SAXException | IOException e) {
+        catch (final IllegalArgumentException | ParserConfigurationException | SAXException | IOException e) {
             throw new UnavailableException( e );
         }
 
@@ -134,7 +133,8 @@ public class MPTestSuite implements Callable<Boolean> {
         return tests;
     }
 
-    public boolean forEach(final String testName, final NNFunctionNN<MPTests.Case, Boolean> testFunction) {
+    public boolean forEach(final String testName, final TestCase testFunction)
+            throws Exception {
         List<MPTests.Case> cases = tests.getCases();
         for (int c = 0; c < cases.size(); c++) {
             MPTests.Case testCase = cases.get( c );
@@ -144,7 +144,7 @@ public class MPTestSuite implements Callable<Boolean> {
             progress( Logger.Target.INFO, c, cases.size(), //
                       "[%s] on %s...", testName, testCase.getIdentifier() );
 
-            if (!testFunction.apply( testCase )) {
+            if (!testFunction.run( testCase )) {
                 progress( Logger.Target.ERROR, cases.size(), cases.size(), //
                           "[%s] on %s: FAILED!", testName, testCase.getIdentifier() );
 
@@ -168,16 +168,13 @@ public class MPTestSuite implements Callable<Boolean> {
     @Override
     public Boolean call()
             throws Exception {
-        return forEach( "mpw", new NNFunctionNN<MPTests.Case, Boolean>() {
-            @Nonnull
-            @Override
-            public Boolean apply(@Nonnull final MPTests.Case testCase) {
-                MasterKey masterKey = MasterKey.create( testCase.getAlgorithm(), testCase.getFullName(), testCase.getMasterPassword() );
-                String sitePassword = masterKey.encode( testCase.getSiteName(), testCase.getSiteType(), testCase.getSiteCounter(),
-                                                        testCase.getSiteVariant(), testCase.getSiteContext() );
+        return forEach( "mpw", testCase -> {
+            MPMasterKey masterKey = new MPMasterKey( testCase.getFullName(), testCase.getMasterPassword().toCharArray() );
+            String sitePassword = masterKey.siteResult( testCase.getSiteName(), testCase.getAlgorithm(), testCase.getSiteCounter(),
+                                                        testCase.getKeyPurpose(), testCase.getKeyContext(),
+                                                        testCase.getResultType(), null );
 
-                return testCase.getResult().equals( sitePassword );
-            }
+            return testCase.getResult().equals( sitePassword );
         } );
     }
 
@@ -191,8 +188,17 @@ public class MPTestSuite implements Callable<Boolean> {
     }
 
 
+    @FunctionalInterface
     public interface Listener {
 
         void progress(int current, int max, String messageFormat, Object... args);
+    }
+
+
+    @FunctionalInterface
+    public interface TestCase {
+
+        boolean run(MPTests.Case testCase)
+                throws Exception;
     }
 }
